@@ -1,3 +1,4 @@
+from db import save_emails_to_db
 import imaplib
 import email
 from email.header import decode_header
@@ -78,7 +79,8 @@ def fetch_unread_emails(mail):
                 
                 # Add email to the list
                 emails.append(email_data)
-    
+    save_emails_to_db(emails)
+
     return emails
 
 def main():
