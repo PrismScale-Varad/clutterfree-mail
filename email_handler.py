@@ -3,18 +3,16 @@ import imaplib
 import email
 from email.header import decode_header
 import os
+import re
 import json
-
+from bs4 import BeautifulSoup
 
 def load_config(config_path="config.json"):
     """ Load email configuration from a JSON file. """
-    # Get the current working directory (the directory the script is run from)
     current_directory = os.path.dirname(os.path.abspath(__file__))
     
-    # Construct the full path to the config file
     config_file_path = os.path.join(current_directory, config_path)
     
-    # Load the config file
     try:
         with open(config_file_path, "r") as f:
             config = json.load(f)
@@ -26,28 +24,23 @@ def load_config(config_path="config.json"):
 
 def connect_to_email(config):
     """ Connect to the IMAP email server using the provided credentials. """
-    # Set up the connection to the IMAP server
     mail = imaplib.IMAP4_SSL(config['email']['imap_server'])
     mail.login(config['email']['email_address'], config['email']['password'])
     return mail
 
 def fetch_unread_emails(mail):
     """ Fetch unread emails from the inbox. """
-    # Select the mailbox you want to check (in this case, 'inbox')
     mail.select("inbox")
     
-    # Search for all unread emails
     status, messages = mail.search(None, 'UNSEEN')
     
     if status != "OK":
         print("No unread emails found!")
         return []
 
-    # Split the email IDs into a list
     email_ids = messages[0].split()
     emails = []
 
-    # Fetch each email by ID
     for email_id in email_ids:
         status, msg_data = mail.fetch(email_id, "(RFC822)")
         
@@ -55,42 +48,63 @@ def fetch_unread_emails(mail):
             print(f"Failed to fetch email ID {email_id}")
             continue
         
-        # Parse the email content
         for response_part in msg_data:
             if isinstance(response_part, tuple):
                 msg = email.message_from_bytes(response_part[1])
                 
-                # Decode the email subject
                 subject, encoding = decode_header(msg["Subject"])[0]
                 if isinstance(subject, bytes):
                     subject = subject.decode(encoding if encoding else "utf-8")
                 
-                # Decode the sender's email address
                 sender, encoding = decode_header(msg.get("From"))[0]
                 if isinstance(sender, bytes):
                     sender = sender.decode(encoding if encoding else "utf-8")
                 
-                # Save the email data
+                if msg.is_multipart():
+                    for part in msg.walk():
+                        content_type = part.get_content_type()
+                        content_disposition = str(part.get("Content-Disposition"))
+
+                        if "attachment" not in content_disposition:
+                            if content_type == "text/plain":
+                                body = part.get_payload(decode=True).decode("utf-8", errors="ignore")
+                                break
+                            elif content_type == "text/html":
+                                html_content = part.get_payload(decode=True).decode("utf-8", errors="ignore")
+                                soup = BeautifulSoup(html_content, "html.parser")
+                                body = soup.get_text(strip=True)  # Extract plaintext from HTML
+                                break
+                else:
+                    payload = msg.get_payload(decode=True).decode("utf-8", errors="ignore")
+                    if msg.get_content_type() == "text/html":
+                        soup = BeautifulSoup(payload, "html.parser")
+                        for element in soup(["script", "style", "span", "div"]):  # Exclude common tags for styling and scripts
+                            element.decompose()
+                        body = soup.get_text(separator="\n", strip=True)
+                        body = re.sub(r'\\[^\s]*', '', body)
+                        body = re.sub(r'\s+', ' ', body).strip()
+
+
+                    else:
+                        body = payload
+
                 email_data = {
                     "subject": subject,
                     "sender": sender,
+                    "body": body,
                     "date": msg["Date"]
                 }
                 
-                # Add email to the list
                 emails.append(email_data)
     save_emails_to_db(emails)
 
     return emails
 
 def main():
-    # Load the email config
     config = load_config()
 
-    # Connect to the email account
     mail = connect_to_email(config)
     
-    # Fetch unread emails
     unread_emails = fetch_unread_emails(mail)
     
     if unread_emails:
