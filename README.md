@@ -30,7 +30,6 @@
 |- db.py
 |- data.json
 |- config.json
-|- thumbnails\
 |- requirements.txt
 |- README.md
 ```
