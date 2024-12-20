@@ -2,6 +2,16 @@
 
 ## A tool that simplifies email newsletter management by extracting, analyzing, and summarizing relevant content from newsletters into a concise weekly summary
 
+## Current Progress:
+- Grab unread emails from inbox
+- Save them to database
+- Run a summarizer model on emails
+
+## Pending:
+- Integrate classifier model to identify if an email is a newsletter just from sender and subject
+- Tag and score the emails in context to user's interests
+- Send an email
+
 ### Tech Stack:
 - Python
 - imaplib
