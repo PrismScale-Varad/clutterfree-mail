@@ -1,5 +1,4 @@
 from tinydb import TinyDB, Query
-from process_articles import summarize
 from datetime import datetime, timedelta
 
 # Initialize TinyDB (data.json is the database file)
@@ -34,3 +33,10 @@ def update_email_summary_in_db(email_id, summary, table_name="emails"):
     emails_table.update({'summary': summary}, doc_ids=[email_id])
     print(f"Updated summary for email ID {email_id}")
 
+def fetch_emails_from_last_7_days(table_name="emails"):
+    """ Fetch emails from the last 7 days. """
+    emails_table = db.table(table_name)
+    seven_days_ago = datetime.now() - timedelta(days=7)
+    # Filter emails by date (assuming 'date' is stored in a datetime-compatible format)
+    emails = emails_table.search(Query().date > seven_days_ago.strftime('%Y-%m-%d'))
+    return emails

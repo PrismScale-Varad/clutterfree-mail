@@ -5,6 +5,9 @@ import os
 import re
 import json
 from bs4 import BeautifulSoup
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 def load_config(config_path="config.json"):
     """ Load email configuration from a JSON file. """
@@ -109,3 +112,42 @@ def fetch_unread_emails(mail):
                 emails.append(email_data)
 
     return emails
+
+def fetch_email_summaries_from_last_7_days(config):
+    """ Fetch unread emails from the last 7 days and return their summaries. """
+    from db import fetch_emails_from_last_7_days
+    emails = fetch_emails_from_last_7_days()
+    
+    summaries = []
+    for email in emails:
+        if email.get('summary'):
+            summaries.append(f"Subject: {email['subject']}\nSummary: {email['summary']}\n")
+    return summaries
+
+def send_summary_email(config, summaries):
+    sender_email = config['email']['email_address']
+    recipient_email = config['email']['recipient_email']
+    smtp_server = config['email']['smtp_server']
+    smtp_port = config['email']['smtp_port']
+    password = config['email']['password']
+    
+    # Create the email message
+    subject = "Email Summaries for the Last 7 Days"
+    body = "\n\n".join(summaries)
+
+    msg = MIMEMultipart()
+    msg['From'] = sender_email
+    msg['To'] = recipient_email
+    msg['Subject'] = subject
+    msg.attach(MIMEText(body, 'plain'))
+    
+    try:
+        # Connect to the SMTP server using TLS
+        with smtplib.SMTP(smtp_server, smtp_port) as server:
+            server.starttls()  # Start TLS encryption
+            server.login(sender_email, password)  # Login to the server
+            server.sendmail(sender_email, recipient_email, msg.as_string())  # Send the email
+            print(f"Summary email sent to {recipient_email}")
+
+    except Exception as e:
+        print(f"Error sending email: {e}")
